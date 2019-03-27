@@ -126,7 +126,7 @@ void PlayerOSD::setVisibility(c2d::Visibility visibility, bool tweenPlay) {
     C2DObject::setVisibility(visibility, tweenPlay);
 }
 
-void PlayerOSD::onDraw(c2d::Transform &transform) {
+void PlayerOSD::onDraw(c2d::Transform &transform, bool draw) {
 
     if (main->getPlayer()->isStopped() || !main->getPlayer()->isFullscreen()) {
         setVisibility(Visibility::Hidden, false);
@@ -135,6 +135,7 @@ void PlayerOSD::onDraw(c2d::Transform &transform) {
 
     if (clock.getElapsedTime().asSeconds() >= OSD_HIDE_TIME) {
         setVisibility(Visibility::Hidden, true);
+        main->getStatusBar()->setVisibility(Visibility::Hidden, true);
     }
 
     if (main->getPlayer()->isPlaying()) {
@@ -152,6 +153,7 @@ bool PlayerOSD::onInput(c2d::Input::Player *players) {
 
     if (main->getPlayer()->isStopped() || !main->getPlayer()->isFullscreen()) {
         setVisibility(Visibility::Hidden, true);
+        main->getStatusBar()->setVisibility(Visibility::Hidden, true);
         return true;
     }
 
@@ -159,6 +161,7 @@ bool PlayerOSD::onInput(c2d::Input::Player *players) {
 
     if ((keys & Input::Key::Up) || keys & Input::Key::Fire2) {
         setVisibility(Visibility::Hidden, true);
+        main->getStatusBar()->setVisibility(Visibility::Hidden, true);
     } else if (keys & Input::Key::Left) {
         index--;
         if (index < 0) {
@@ -204,4 +207,10 @@ bool PlayerOSD::onInput(c2d::Input::Player *players) {
     }
 
     return true;
+}
+
+void PlayerOSD::reset() {
+    btn_play->setVisibility(Visibility::Hidden);
+    buttons.at((int) ButtonID::Pause)->setVisibility(Visibility::Visible);
+    clock.restart();
 }

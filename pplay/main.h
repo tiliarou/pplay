@@ -14,6 +14,7 @@
 #include "menus/menu_main.h"
 #include "menus/menu_video.h"
 #include "status_box.h"
+#include "status_bar.h"
 
 #define INPUT_DELAY 500
 #define ICON_SIZE 24
@@ -71,6 +72,8 @@ public:
 
     Filer *getFiler();
 
+    c2d::Texture *getTitle();
+
     PPLAYConfig *getConfig();
 
     c2d::Font *getFont() override;
@@ -79,17 +82,23 @@ public:
 
     StatusBox *getStatus();
 
+    StatusBar *getStatusBar();
+
     float getScaling();
 
     unsigned int getFontSize(FontSize fontSize);
 
     void quit();
 
+#ifndef NDEBUG
+    c2d::Text *debugText = nullptr;
+#endif
+
 private:
 
     bool onInput(c2d::Input::Player *players) override;
 
-    void onDraw(c2d::Transform &transform) override;
+    void onDraw(c2d::Transform &transform, bool draw = true) override;
 
     c2d::Font *font = nullptr;
     c2d::Clock *timer = nullptr;
@@ -100,6 +109,8 @@ private:
     Filer *filerHttp = nullptr;
     Filer *filerFtp = nullptr;
     Filer *filer = nullptr;
+    StatusBar *statusBar = nullptr;
+    c2d::Texture *title = nullptr;
     Player *player = nullptr;
     MenuMain *menu_main = nullptr;
     MenuVideo *menu_video = nullptr;

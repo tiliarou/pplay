@@ -2,18 +2,45 @@
 // Created by cpasjuste on 02/10/18.
 //
 
-#ifdef __SWITCH__
-extern "C" {
-//#include <pthread.h>
-}
-#endif
-
 #include "main.h"
 #include "filers/filer_sdmc.h"
 #include "filers/filer_http.h"
 #include "filers/filer_ftp.h"
 #include "menus/menu_main.h"
 #include "menus/menu_video.h"
+
+#ifdef __SWITCH__
+
+static AppletHookCookie applet_hook_cookie;
+
+static void on_applet_hook(AppletHookType hook, void *arg) {
+
+    Main *main = (Main *) arg;
+
+    switch (hook) {
+        case AppletHookType_OnExitRequest:
+            main->quit();
+            break;
+        case AppletHookType_OnFocusState:
+            if (appletGetFocusState() == AppletFocusState_Focused) {
+                if (main->getPlayer()->isPaused()) {
+                    main->getPlayer()->resume();
+                }
+            } else {
+                if (main->getPlayer()->isPlaying()) {
+                    main->getPlayer()->pause();
+                }
+            }
+            break;
+        case AppletHookType_OnPerformanceMode:
+            break;
+
+        default:
+            break;
+    }
+}
+
+#endif
 
 using namespace c2d;
 using namespace c2d::config;
@@ -23,7 +50,6 @@ Main::Main(const c2d::Vector2f &size) : C2DRenderer(size) {
     setClearColor(Color::Black);
 
     // configure input
-    getInput()->setRepeatEnable(true);
     getInput()->setRepeatDelay(INPUT_DELAY);
 
     // create a timer
@@ -66,6 +92,18 @@ Main::Main(const c2d::Vector2f &size) : C2DRenderer(size) {
     filer = filerSdmc;
     filer->getDir(config->getOption(OPT_LAST_PATH)->getString());
 
+    // status bar
+    statusBar = new StatusBar(this);
+    statusBar->setLayer(10);
+    add(statusBar);
+
+    // title image
+    title = new C2DTexture(getIo()->getDataReadPath() + "skin/pplay.png");
+    title->setOrigin(Origin::BottomRight);
+    title->setPosition(getSize().x - 16, getSize().y - 16);
+    title->add(new TweenAlpha(0, 255, 0.5f));
+    add(title);
+
     // ffmpeg player
     player = new Player(this);
     add(player);
@@ -105,6 +143,12 @@ Main::Main(const c2d::Vector2f &size) : C2DRenderer(size) {
     messageBox->getTitleText()->setOutlineThickness(0);
     messageBox->getMessageText()->setOutlineThickness(0);
     add(messageBox);
+
+#ifndef NDEBUG
+    debugText = new Text("DEBUG: ", getFontSize(Main::FontSize::Medium), getFont());
+    debugText->setLayer(1000);
+    add(debugText);
+#endif
 }
 
 Main::~Main() {
@@ -146,7 +190,7 @@ bool Main::onInput(c2d::Input::Player *players) {
     return Renderer::onInput(players);
 }
 
-void Main::onDraw(c2d::Transform &transform) {
+void Main::onDraw(c2d::Transform &transform, bool draw) {
 
     unsigned int keys = getInput()->getKeys(0);
 
@@ -220,7 +264,6 @@ void Main::quit() {
     }
 
     player->stop();
-
     running = false;
 }
 
@@ -268,6 +311,14 @@ unsigned int Main::getFontSize(FontSize fontSize) {
     return (unsigned int) ((float) fontSize * scaling);
 }
 
+c2d::Texture *Main::getTitle() {
+    return title;
+}
+
+StatusBar *Main::getStatusBar() {
+    return statusBar;
+}
+
 int main() {
 
     Vector2f size = {1280, 720};
@@ -284,14 +335,24 @@ int main() {
 
     Main *main = new Main(size);
 
+#ifdef __SWITCH__
+    appletLockExit();
+    appletHook(&applet_hook_cookie, on_applet_hook, main);
+    appletSetFocusHandlingMode(AppletFocusHandlingMode_NoSuspend);
+#endif
+
     while (main->isRunning()) {
         main->flip();
     }
 
     delete (main);
 
-#if defined(__SWITCH__) && !defined(__NET_DEBUG__)
+#ifdef __SWITCH__
+    appletUnhook(&applet_hook_cookie);
+    appletUnlockExit();
+#ifndef __NET_DEBUG__
     socketExit();
+#endif
 #endif
 
     return 0;

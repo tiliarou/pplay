@@ -24,11 +24,13 @@ public:
 
     explicit PlayerOSD(Main *main);
 
+    void reset();
+
     void setVisibility(c2d::Visibility visibility, bool tweenPlay = true) override;
 
 private:
 
-    void onDraw(c2d::Transform &transform) override;
+    void onDraw(c2d::Transform &transform, bool draw = true) override;
 
     bool onInput(c2d::Input::Player *players) override;
 

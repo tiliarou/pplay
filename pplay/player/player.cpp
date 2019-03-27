@@ -47,9 +47,11 @@ bool Player::load(const MediaFile &file) {
         return false;
     }
 
-    // default buffer, "Medium"
-    Kit_SetHint(KIT_HINT_VIDEO_BUFFER_FRAMES, 64);
-    Kit_SetHint(KIT_HINT_AUDIO_BUFFER_FRAMES, 512);
+    Kit_SetHint(KIT_HINT_THREAD_COUNT, 4);
+
+    // default buffer, "Low"
+    Kit_SetHint(KIT_HINT_VIDEO_BUFFER_FRAMES, 3);
+    Kit_SetHint(KIT_HINT_AUDIO_BUFFER_FRAMES, 64);
     Kit_SetHint(KIT_HINT_SUBTITLE_BUFFER_FRAMES, 64);
     std::string buffering = main->getConfig()->getOption(OPT_BUFFER)->getString();
     if (Utility::toLower(buffering) == "low") {
@@ -147,11 +149,12 @@ bool Player::load(const MediaFile &file) {
 
     // get some information
     Kit_GetPlayerInfo(kit_player, &playerInfo);
-    printf("Player::load: Video(%s, %s): %i x %i , Audio(%s): %i hz\n",
+    printf("Player::load: Video(%s, %s): %i x %i , Audio(%s): %i @ %i hz\n",
            playerInfo.video.codec.name,
            SDL_GetPixelFormatName(playerInfo.video.output.format),
            playerInfo.video.output.width, playerInfo.video.output.height,
            playerInfo.audio.codec.name,
+           playerInfo.audio.output.format,
            playerInfo.audio.output.samplerate);
 
     // get a decoder handle for audio fps and buffering status
@@ -187,9 +190,7 @@ bool Player::load(const MediaFile &file) {
                 fps = (float) av_q2d(decoder->format_ctx->streams[video_streams.getCurrent()]->r_frame_rate);
             }
         }
-        // TODO: < 48000 not working fine on switch, check sdl2/libsamplerate
-        //audio = new C2DAudio(playerInfo.audio.output.samplerate, fps);
-        audio = new C2DAudio(48000, fps);
+        audio = new C2DAudio(playerInfo.audio.output.samplerate, fps);
         // audios menu options
         std::vector<MenuItem> items;
         for (auto &stream : file.media.audios) {
@@ -206,14 +207,10 @@ bool Player::load(const MediaFile &file) {
     if (subtitles_streams.size > 0) {
         textureSub = new SubtitlesTexture();
         textureSub->setFilter(Texture::Filter::Point);
-        void *buf;
-        textureSub->lock(nullptr, &buf, nullptr);
-        memset(buf, 0, 1024 * 1024 * 4);
-        textureSub->unlock();
+        add(textureSub);
         if (!show_subtitles) {
             textureSub->setVisibility(Visibility::Hidden);
         }
-        add(textureSub);
         // subtitles menu options
         std::vector<MenuItem> items;
         items.emplace_back("None", "", MenuItem::Position::Top, -1);
@@ -246,7 +243,7 @@ bool Player::load(const MediaFile &file) {
     loading = false;
 
 #ifdef __SWITCH__
-    appletSetMediaPlaybackStateForApplication(true);
+    appletSetMediaPlaybackState(true);
 #endif
 
     setVisibility(Visibility::Visible);
@@ -272,6 +269,7 @@ bool Player::onInput(c2d::Input::Player *players) {
     if ((keys & Input::Key::Fire1) || (keys & Input::Key::Down)) {
         if (!osd->isVisible()) {
             osd->setVisibility(Visibility::Visible, true);
+            main->getStatusBar()->setVisibility(Visibility::Visible, true);
         }
     } else if (keys & c2d::Input::Key::Left || keys & Input::Key::Fire2) {
         setFullscreen(false);
@@ -283,7 +281,24 @@ bool Player::onInput(c2d::Input::Player *players) {
 }
 
 
-void Player::onDraw(c2d::Transform &transform) {
+void Player::onDraw(c2d::Transform &transform, bool draw) {
+
+#ifndef NDEBUG
+    if (kit_player) {
+        std::string v_buf_in = "video: in = ", v_buf_out = "out = ", a_buf_in = "audio: in = ", a_buf_out = "out: ";
+        auto *v_dec = (Kit_Decoder *) kit_player->decoders[0];
+        if (v_dec) {
+            v_buf_in += std::to_string(Kit_GetBufferBufferedSize(v_dec->buffer[KIT_DEC_BUF_IN]));
+            v_buf_out += std::to_string(Kit_GetBufferBufferedSize(v_dec->buffer[KIT_DEC_BUF_OUT]));
+        }
+        auto *a_dec = (Kit_Decoder *) kit_player->decoders[1];
+        if (a_dec) {
+            a_buf_in += std::to_string(Kit_GetBufferBufferedSize(a_dec->buffer[KIT_DEC_BUF_IN]));
+            a_buf_out += std::to_string(Kit_GetBufferBufferedSize(a_dec->buffer[KIT_DEC_BUF_OUT]));
+        }
+        main->debugText->setString(v_buf_in + "\t" + v_buf_out + "\n" + a_buf_in + "\t" + a_buf_out);
+    }
+#endif
 
     if (loading || isStopped()) {
         Rectangle::onDraw(transform);
@@ -493,6 +508,7 @@ int Player::seek(double seek_position) {
 
     kit_player->state = KIT_PLAYING;
     loading = false;
+    osd->reset();
 
     return 0;
 }
@@ -542,6 +558,8 @@ void Player::setFullscreen(bool fs) {
             menuSubtitlesStreams->setVisibility(Visibility::Hidden, true);
         }
         main->getFiler()->setVisibility(Visibility::Visible, true);
+        main->getTitle()->setVisibility(Visibility::Visible, true);
+        main->getStatusBar()->setVisibility(Visibility::Visible, true);
     } else {
         if (texture) {
             texture->hideGradients();
@@ -549,6 +567,8 @@ void Player::setFullscreen(bool fs) {
         tweenPosition->play(TweenDirection::Forward);
         tweenScale->play(TweenDirection::Forward);
         main->getFiler()->setVisibility(Visibility::Hidden, true);
+        main->getTitle()->setVisibility(Visibility::Hidden, true);
+        main->getStatusBar()->setVisibility(Visibility::Hidden, true);
     }
 }
 
@@ -638,11 +658,12 @@ void Player::stop() {
         subtitles_streams.reset();
         show_subtitles = false;
         title.clear();
+        osd->reset();
 
         setCpuClock(CpuClock::Min);
 
 #ifdef __SWITCH__
-        appletSetMediaPlaybackStateForApplication(false);
+        appletSetMediaPlaybackState(false);
 #endif
     }
 

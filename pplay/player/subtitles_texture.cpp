@@ -10,11 +10,16 @@ using namespace c2d;
 SubtitlesTexture::SubtitlesTexture(const Vector2f &size, Texture::Format format)
         : C2DTexture(size, format) {
 
+    void *buf;
+    lock(nullptr, &buf, nullptr);
+    memset(buf, 0, ATLAS_SIZE * ATLAS_SIZE * 4);
+    unlock();
+
     sprite = new Sprite();
     sprite->setTexture(this);
 }
 
-void SubtitlesTexture::onDraw(c2d::Transform &transform) {
+void SubtitlesTexture::onDraw(c2d::Transform &transform, bool draw) {
 
     for (int i = 0; i < rects_count; i++) {
         sprite->setPosition(rects_dst[i].x, rects_dst[i].y);
