@@ -8,8 +8,7 @@
 #include "cross2d/c2d.h"
 #include "filers/filer.h"
 #include "player/player.h"
-#include "config.h"
-#include "media_thread.h"
+#include "pplay_config.h"
 #include "menus/menu.h"
 #include "menus/menu_main.h"
 #include "menus/menu_video.h"
@@ -60,13 +59,15 @@ public:
 
     void show(MenuType type);
 
+    bool isExiting();
+
     bool isRunning();
+
+    void setRunningStop();
 
     MenuMain *getMenuMain();
 
     MenuVideo *getMenuVideo();
-
-    MediaThread *getMediaThread();
 
     Player *getPlayer();
 
@@ -90,10 +91,6 @@ public:
 
     void quit();
 
-#ifndef NDEBUG
-    c2d::Text *debugText = nullptr;
-#endif
-
 private:
 
     bool onInput(c2d::Input::Player *players) override;
@@ -108,14 +105,16 @@ private:
     Filer *filerSdmc = nullptr;
     Filer *filerHttp = nullptr;
     Filer *filerFtp = nullptr;
+    Filer *filerSmb = nullptr;
     Filer *filer = nullptr;
     StatusBar *statusBar = nullptr;
     c2d::Texture *title = nullptr;
     Player *player = nullptr;
     MenuMain *menu_main = nullptr;
     MenuVideo *menu_video = nullptr;
-    MediaThread *mediaInfoThread = nullptr;
     float scaling = 1;
+
+    bool exit = false;
     bool running = true;
 };
 

@@ -51,7 +51,7 @@ public:
         float width = ((float) percent / 100) * (getSize().x - 2);
         percentRect->setSize(std::min(width, getSize().x - 4), percentRect->getSize().y);
         percentRect->setFillColor(percent > 15 ? COLOR_FONT : Color::Red);
-        RectangleShape::onDraw(transform);
+        RectangleShape::onDraw(transform, draw);
     }
 
     RectangleShape *percentRect = nullptr;
@@ -69,7 +69,7 @@ StatusBar::StatusBar(Main *main) : GradientRectangle({0, 0, main->getSize().x, 3
     setPosition(0, -height);
     add(new TweenPosition(getPosition(), {0, 0}, 0.5f));
 
-    battery = new Battery({main->getSize().x - 16, height / 2 + 1, (height - 16) * 2, height - 16});
+    battery = new Battery({main->getSize().x - 16, height / 2 + 1, (height - 16) * 2, height / 2});
     battery->setOrigin(Origin::Right);
     add(battery);
 
@@ -93,7 +93,7 @@ void StatusBar::onDraw(c2d::Transform &transform, bool draw) {
     oss << std::setfill('0') << std::setw(2) << time_struct->tm_min;
     timeText->setString(oss.str());
 
-    Sprite::onDraw(transform);
+    Sprite::onDraw(transform, draw);
 }
 
 StatusBar::~StatusBar() {

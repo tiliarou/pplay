@@ -9,6 +9,10 @@
 #include "menus/menu_main.h"
 #include "menus/menu_video.h"
 
+#ifdef __SMB_SUPPORT__
+#include "filers/filer_smb.h"
+#endif
+
 #ifdef __SWITCH__
 
 static AppletHookCookie applet_hook_cookie;
@@ -27,7 +31,7 @@ static void on_applet_hook(AppletHookType hook, void *arg) {
                     main->getPlayer()->resume();
                 }
             } else {
-                if (main->getPlayer()->isPlaying()) {
+                if (!main->getPlayer()->isPaused()) {
                     main->getPlayer()->pause();
                 }
             }
@@ -72,23 +76,32 @@ Main::Main(const c2d::Vector2f &size) : C2DRenderer(size) {
     statusBox->setLayer(10);
     add(statusBox);
 
-    // media info
+    // media information cache
     getIo()->create(getIo()->getDataWritePath() + "cache");
-    mediaInfoThread = new MediaThread(this, getIo()->getDataWritePath() + "cache/");
 
     // create filers
+    // sdmc
     FloatRect filerRect = {0, 0, (getSize().x / 2) - 16, getSize().y - 32 - 64};
     filerSdmc = new FilerSdmc(this, "/", filerRect);
     filerSdmc->setLayer(1);
     add(filerSdmc);
+    // http
     filerHttp = new FilerHttp(this, filerRect);
     filerHttp->setLayer(1);
     filerHttp->setVisibility(Visibility::Hidden);
     add(filerHttp);
+    // ftp
     filerFtp = new FilerFtp(this, filerRect);
     filerFtp->setLayer(1);
     filerFtp->setVisibility(Visibility::Hidden);
     add(filerFtp);
+#ifdef __SMB_SUPPORT__
+    // smb
+    filerSmb = new FilerSmb(this, filerRect);
+    filerSmb->setLayer(1);
+    filerSmb->setVisibility(Visibility::Hidden);
+    add(filerSmb);
+#endif
     filer = filerSdmc;
     filer->getDir(config->getOption(OPT_LAST_PATH)->getString());
 
@@ -143,26 +156,15 @@ Main::Main(const c2d::Vector2f &size) : C2DRenderer(size) {
     messageBox->getTitleText()->setOutlineThickness(0);
     messageBox->getMessageText()->setOutlineThickness(0);
     add(messageBox);
-
-#ifndef NDEBUG
-    debugText = new Text("DEBUG: ", getFontSize(Main::FontSize::Medium), getFont());
-    debugText->setLayer(1000);
-    add(debugText);
-#endif
 }
 
 Main::~Main() {
-    delete (mediaInfoThread);
     delete (config);
     delete (timer);
     delete (font);
 }
 
 bool Main::onInput(c2d::Input::Player *players) {
-
-    if (player->isLoading()) {
-        return true;
-    }
 
     if (messageBox->isVisible()) {
         // don't handle input if message box is visible
@@ -209,7 +211,7 @@ void Main::onDraw(c2d::Transform &transform, bool draw) {
 // TODO: move this in menu_main
 void Main::show(MenuType type) {
 
-    if (player->isPlaying() && player->isFullscreen()) {
+    if (player->isStopped() && player->isFullscreen()) {
         player->setFullscreen(false);
     }
 
@@ -217,6 +219,9 @@ void Main::show(MenuType type) {
         filerSdmc->setVisibility(Visibility::Visible);
         filerHttp->setVisibility(Visibility::Hidden);
         filerFtp->setVisibility(Visibility::Hidden);
+#ifdef __SMB_SUPPORT__
+        filerSmb->setVisibility(Visibility::Hidden);
+#endif
         filer = filerSdmc;
         if (!filer->getDir(config->getOption(OPT_HOME_PATH)->getString())) {
             if (filer->getDir("/")) {
@@ -231,13 +236,28 @@ void Main::show(MenuType type) {
     std::string net_path = config->getOption(OPT_NETWORK)->getString();
     if (Utility::startWith(net_path, "http:")) {
         filerFtp->setVisibility(Visibility::Hidden);
+#ifdef __SMB_SUPPORT__
+        filerSmb->setVisibility(Visibility::Hidden);
+#endif
         filerHttp->setVisibility(Visibility::Visible);
         filer = filerHttp;
     } else if (Utility::startWith(net_path, "ftp:")) {
         filerHttp->setVisibility(Visibility::Hidden);
+#ifdef __SMB_SUPPORT__
+        filerSmb->setVisibility(Visibility::Hidden);
+#endif
         filerFtp->setVisibility(Visibility::Visible);
         filer = filerFtp;
+#ifdef __SMB_SUPPORT__
+        } else if (Utility::startWith(net_path, "smb:")) {
+            filerHttp->setVisibility(Visibility::Hidden);
+            filerFtp->setVisibility(Visibility::Hidden);
+            filerSmb->setVisibility(Visibility::Visible);
+            filer = filerSmb;
+        } else {
+#else
     } else {
+#endif
         messageBox->show("OOPS", "NETWORK path is wrong (see pplay.cfg)", "OK");
         show(MenuType::Home);
         return;
@@ -251,8 +271,17 @@ void Main::show(MenuType type) {
     }
 }
 
+bool Main::isExiting() {
+    return exit;
+}
+
 bool Main::isRunning() {
     return running;
+}
+
+void Main::setRunningStop() {
+    printf("Main::setRunningStop()\n");
+    running = false;
 }
 
 void Main::quit() {
@@ -263,12 +292,12 @@ void Main::quit() {
         config->save();
     }
 
-    player->stop();
-    running = false;
-}
-
-MediaThread *Main::getMediaThread() {
-    return mediaInfoThread;
+    exit = true;
+    if (player->isStopped()) {
+        running = false;
+    } else {
+        player->stop();
+    }
 }
 
 Player *Main::getPlayer() {

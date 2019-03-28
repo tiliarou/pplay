@@ -30,11 +30,11 @@ void MenuVideoSubmenu::setSelection(int streamType) {
 
     int stream_id = -1;
     if (streamType == MENU_VIDEO_TYPE_VID) {
-        stream_id = main->getPlayer()->getVideoStreams()->getCurrent();
+        stream_id = main->getPlayer()->getVideoStream();
     } else if (streamType == MENU_VIDEO_TYPE_AUD) {
-        stream_id = main->getPlayer()->getAudioStreams()->getCurrent();
-    } else if (streamType == MENU_VIDEO_TYPE_SUB && main->getPlayer()->isSubtitlesEnabled()) {
-        stream_id = main->getPlayer()->getSubtitlesStreams()->getCurrent();
+        stream_id = main->getPlayer()->getAudioStream();
+    } else if (streamType == MENU_VIDEO_TYPE_SUB) {
+        stream_id = main->getPlayer()->getSubtitleStream();
     }
 
     for (auto &button : buttons) {
@@ -48,20 +48,21 @@ void MenuVideoSubmenu::setSelection(int streamType) {
 void MenuVideoSubmenu::onOptionSelection(MenuItem *item) {
 
     if (item->position == MenuItem::Position::Top) {
+        std::string name = item->name;
+        std::replace(name.begin(), name.end(), '\n', ' ');
         if (type == MENU_VIDEO_TYPE_VID) {
             main->getStatus()->show("Please Wait...",
-                                    "Loading video stream: " + item->name + ". This can take a few seconds...");
+                                    "Loading video stream: " + name + ".\nThis can take a few seconds...");
             main->getPlayer()->setVideoStream(item->id);
             setSelection(MENU_VIDEO_TYPE_VID);
         } else if (type == MENU_VIDEO_TYPE_AUD) {
             main->getStatus()->show("Please Wait...",
-                                    "Loading audio stream: " + item->name + ". This can take a few seconds...");
+                                    "Loading audio stream: " + name + ".\nThis can take a few seconds...");
             main->getPlayer()->setAudioStream(item->id);
             setSelection(MENU_VIDEO_TYPE_AUD);
-        }
-        if (type == MENU_VIDEO_TYPE_SUB) {
+        } else if (type == MENU_VIDEO_TYPE_SUB) {
             main->getStatus()->show("Please Wait...",
-                                    "Loading subtitle stream: " + item->name + ". This can take a few seconds...");
+                                    "Loading subtitle stream: " + name + ".\nThis can take a few seconds...");
             main->getPlayer()->setSubtitleStream(item->id);
             setSelection(MENU_VIDEO_TYPE_SUB);
         }

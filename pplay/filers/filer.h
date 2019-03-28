@@ -8,7 +8,7 @@
 #include "cross2d/c2d.h"
 
 #include "outline_rect.h"
-#include "config.h"
+#include "pplay_config.h"
 #include "filer_item.h"
 #include "media_file.h"
 #include "highlight.h"
@@ -22,6 +22,8 @@ public:
     Filer(Main *main, const std::string &path, const c2d::FloatRect &rect);
 
     ~Filer();
+
+    void setMediaInfo(const MediaFile &target, const MediaInfo &mediaInfo);
 
     virtual bool getDir(const std::string &path) { return false; };
 
@@ -39,13 +41,13 @@ public:
 
 private:
 
-    void onDraw(c2d::Transform &transform, bool draw = true) override;
-
     friend class FilerSdmc;
 
     friend class FilerHttp;
 
     friend class FilerFtp;
+
+    friend class FilerSmb;
 
     virtual void enter(int index);
 

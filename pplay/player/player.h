@@ -5,66 +5,31 @@
 #ifndef PPLAY_PLAYER_H
 #define PPLAY_PLAYER_H
 
-extern "C" {
-#include "kitchensink/kitchensink.h"
-#include "kitchensink/internal/kitlibstate.h"
-}
+#include "../mpv/libmpv/client.h"
+#include "../mpv/libmpv/render_gl.h"
 
 #include "menus/menu_video_submenu.h"
-#include "video_texture.h"
-#include "subtitles_texture.h"
-#include "media_config.h"
-
-#define MAX_STREAM_LIST_SIZE 32
+#include "media_file.h"
 
 class Main;
 
 class PlayerOSD;
 
+class VideoTexture;
+
 class Player : public c2d::Rectangle {
 
 public:
 
-    class Stream {
-    public:
-        Stream() {
-            reset();
-        }
-
-        void reset() {
-            for (int &stream : streams) {
-                stream = -1;
-            }
-            size = 0;
-            current = 0;
-        }
-
-        void setCurrent(int streamId) {
-            for (int i = 0; i < size; i++) {
-                if (streamId == streams[i]) {
-                    current = i;
-                }
-            }
-        }
-
-        int getCurrent() {
-            if (current > -1 && current < size) {
-                return streams[current];
-            }
-            return -1;
-        }
-
-        int streams[MAX_STREAM_LIST_SIZE]{};
-        int size = 0;
-        int current = 0;
-    };
-
-    enum class CpuClock {
-        Min = 0,
-        Max = 1
+    struct Mpv {
+        mpv_handle *handle = nullptr;
+        mpv_render_context *ctx = nullptr;
+        bool available = false;
     };
 
     explicit Player(Main *main);
+
+    ~Player() override;
 
     bool load(const MediaFile &file);
 
@@ -76,19 +41,17 @@ public:
 
     int seek(double position);
 
-    bool isPlaying();
+    void setSpeed(double speed);
+
+    double getSpeed();
 
     bool isPaused();
 
     bool isStopped();
 
-    bool isLoading();
-
-    bool isSubtitlesEnabled();
-
     bool isFullscreen();
 
-    void setFullscreen(bool maximize);
+    void setFullscreen(bool maximize, bool hide = false);
 
     void setVideoStream(int streamId);
 
@@ -96,13 +59,21 @@ public:
 
     void setSubtitleStream(int streamId);
 
-    void setCpuClock(const CpuClock &clock);
+    int getVideoStream();
 
-    Main *getMain();
+    int getAudioStream();
+
+    int getSubtitleStream();
+
+    int getVideoBitrate();
+
+    int getAudioBitrate();
+
+    long getPlaybackDuration();
+
+    long getPlaybackPosition();
 
     PlayerOSD *getOSD();
-
-    Kit_Player *getKitPlayer();
 
     MenuVideoSubmenu *getMenuVideoStreams();
 
@@ -110,21 +81,17 @@ public:
 
     MenuVideoSubmenu *getMenuSubtitlesStreams();
 
-    Stream *getVideoStreams();
-
-    Stream *getAudioStreams();
-
-    Stream *getSubtitlesStreams();
-
     const std::string &getTitle() const;
 
     bool onInput(c2d::Input::Player *players) override;
 
 private:
 
-    void onDraw(c2d::Transform &transform, bool draw = true) override;
+    void onUpdate() override;
 
-    void play();
+    void onLoadEvent();
+
+    void onStopEvent();
 
     // ui
     Main *main = nullptr;
@@ -134,26 +101,13 @@ private:
     MenuVideoSubmenu *menuVideoStreams = nullptr;
     MenuVideoSubmenu *menuAudioStreams = nullptr;
     MenuVideoSubmenu *menuSubtitlesStreams = nullptr;
-    std::string title;
+    MediaFile file;
 
     // player
     VideoTexture *texture = nullptr;
-    SubtitlesTexture *textureSub = nullptr;
-    Kit_Source *source = nullptr;
-    Kit_Player *kit_player = nullptr;
-    Kit_PlayerInfo playerInfo;
-    Stream video_streams;
-    Stream audio_streams;
-    Stream subtitles_streams;
-    // audio
-    c2d::C2DAudio *audio = nullptr;
+    Mpv mpv;
 
-    MediaConfig *config = nullptr;
-
-    bool show_subtitles = false;
     bool fullscreen = false;
-    bool stopped = true;
-    bool loading = false;
 };
 
 #endif //PPLAY_PLAYER_H
